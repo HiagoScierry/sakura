@@ -1,0 +1,2 @@
+# Dependências empacotadas no Lambda (boto3 já vem no runtime)
+pydantic==2.14.2

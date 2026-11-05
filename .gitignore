@@ -1,0 +1,40 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Ferramentas de teste / tipos
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Chalice (estado local de deploy e pacotes gerados)
+.chalice/deployments/
+.chalice/venv/
+chalice.out/
+
+# CDK (template sintetizado, pacote do Chalice e CLI instalada pelo npm)
+infra/cdk.out/
+infra/cdk.context.json
+infra/chalice.out/
+infra/node_modules/
+node_modules/
+
+# Segredos e configuração local (segredos ficam no SSM, nunca no repositório)
+.env
+.env.*
+*.pem
+*.key
+
+# Editores e sistema operacional
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db

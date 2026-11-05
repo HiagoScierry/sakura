@@ -1,0 +1,10 @@
+{
+  "name": "chalice-api-infra",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "aws-cdk": "2.1147.0"
+  }
+}

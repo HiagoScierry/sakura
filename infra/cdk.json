@@ -1,0 +1,9 @@
+{
+  "app": "python app.py",
+  "watch": {
+    "exclude": ["cdk.out", "chalice.out", "node_modules"]
+  },
+  "context": {
+    "@aws-cdk/aws-iam:minimizePolicies": true
+  }
+}
