@@ -16,6 +16,7 @@ export MSYS_NO_PATHCONV := 1
 
 # O CDK executa o app Python do infra/ com o Python do venv
 CDK = cd infra && npx cdk --app "$(abspath $(VENV_BIN))/python app.py"
+CDK_GITHUB = cd infra && npx cdk --app "$(abspath $(VENV_BIN))/python github_app.py"
 
 # Parâmetros do SSM sem os quais o app não sobe
 REQUIRED_PARAMS = api-token telegram-bot-token telegram-chat-id
@@ -25,10 +26,10 @@ stack_output = $$(aws cloudformation describe-stacks --stack-name chalice-api-$(
 	--query "Stacks[0].Outputs[?OutputKey=='$(1)'].OutputValue" --output text 2>/dev/null)
 
 .DEFAULT_GOAL := help
-.PHONY: help install test typecheck check local synth diff bootstrap preflight deploy-dev deploy-prod
+.PHONY: help install test typecheck check local synth diff bootstrap preflight deploy-dev deploy-prod release github-access
 
 help: ## Lista os alvos disponíveis
-	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
 
 # ---------------------------------------------------------------------------
 # Desenvolvimento
@@ -104,3 +105,13 @@ deploy-prod: ## Deploy em PRODUÇÃO: testes, tipos, SSM, diff e confirmação m
 	read answer; \
 	if [ "$$answer" != "prod" ]; then echo "Cancelado."; exit 1; fi
 	$(CDK) deploy -c stage=prod --require-approval broadening
+
+release: ## Deploy em produção sem perguntas (usado pela pipeline; a aprovação fica no GitHub)
+	$(MAKE) --no-print-directory check
+	$(MAKE) --no-print-directory preflight STAGE=prod
+	$(CDK) deploy -c stage=prod --require-approval never
+
+github-access: ## Cria o papel IAM que a pipeline assume via OIDC (uma vez por conta)
+	$(CDK_GITHUB) deploy --require-approval broadening \
+		$(if $(GITHUB_REPO),-c github_repo=$(GITHUB_REPO)) \
+		$(if $(OIDC_PROVIDER_ARN),-c oidc_provider_arn=$(OIDC_PROVIDER_ARN))

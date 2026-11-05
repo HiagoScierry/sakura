@@ -143,6 +143,38 @@ make deploy-prod
 Cada stage é um stack isolado (`chalice-api-dev`, `chalice-api-prod`) com segredos em `/chalice-api/<stage>/...`.
 Em prod as duas tabelas são retidas se o stack for destruído. A URL da API aparece nos outputs do deploy (`EndpointURL`).
 
+## Pipeline (GitHub Actions)
+
+Toda tag `vX.Y.Z` publica em produção (`.github/workflows/release.yml`):
+
+```bash
+git tag v1.0.0 && git push origin v1.0.0
+```
+
+1. **Testes e tipos:** confere se a tag é semver e aponta para um commit da `main`, depois `make check`.
+2. **Deploy em produção** (environment `prod` do GitHub): assume o papel IAM via OIDC (sem chave de acesso
+   guardada no GitHub), roda `make release` (check → segredos no SSM → `cdk deploy`) e cria a GitHub Release
+   com as notas geradas a partir dos commits.
+
+Deploys de produção rodam um por vez. Tags fora do padrão (`v1.0`, `v1.0.0-rc1`) não publicam.
+
+### Configuração (uma vez)
+
+```bash
+make bootstrap                     # se ainda não fez
+make github-access                 # cria o papel IAM chalice-api-github-deploy-prod (output DeployRoleArn)
+# se a conta já tem o provedor OIDC do GitHub:
+make github-access OIDC_PROVIDER_ARN=arn:aws:iam::<conta>:oidc-provider/token.actions.githubusercontent.com
+```
+
+No GitHub, em *Settings → Environments*, crie o environment **`prod`** com:
+- variables `AWS_DEPLOY_ROLE_ARN` (o output acima) e `AWS_REGION`;
+- *Required reviewers*, se quiser aprovar cada deploy antes de rodar;
+- *Deployment branches and tags* → tags `v*.*.*`.
+
+O papel só aceita jobs deste repositório no environment `prod` e só tem permissão de assumir os papéis do
+`cdk bootstrap` e de conferir se os segredos de prod existem.
+
 ## Cadastrando serviços
 
 ```powershell

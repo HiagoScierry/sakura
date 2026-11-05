@@ -1,0 +1,23 @@
+name: Setup
+description: Python 3.12, Node 24 e `make install` (venv + dependências + CLI do CDK), com cache
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v6
+      with:
+        python-version: '3.12'
+        cache: pip
+        cache-dependency-path: |
+          requirements.txt
+          requirements-dev.txt
+          infra/requirements.txt
+
+    - uses: actions/setup-node@v5
+      with:
+        node-version: '24'
+        cache: npm
+        cache-dependency-path: infra/package-lock.json
+
+    - run: make install
+      shell: bash

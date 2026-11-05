@@ -1,0 +1,77 @@
+# Publica em produção toda vez que uma tag de versão (v1.2.3) é enviada.
+#   git tag v1.0.0 && git push origin v1.0.0
+#
+# Pré-requisitos (uma vez; veja a seção "Pipeline" do README):
+#   - environment "prod" no GitHub, com as variables AWS_REGION e AWS_DEPLOY_ROLE_ARN
+#   - papel IAM criado com `make github-access` e conta com `make bootstrap`
+name: release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+# Um deploy de produção por vez; o seguinte espera em vez de cancelar o que está rodando
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Testes e tipos
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0  # histórico completo para conferir se a tag está na main
+
+      - name: Tag é semver e aponta para um commit da main
+        run: |
+          if ! [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Tag '$GITHUB_REF_NAME' não segue o padrão vMAJOR.MINOR.PATCH"; exit 1
+          fi
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::A tag $GITHUB_REF_NAME aponta para um commit fora da main"; exit 1
+          fi
+
+      - uses: ./.github/actions/setup
+
+      - run: make check
+
+  deploy:
+    name: Deploy em produção
+    needs: check
+    runs-on: ubuntu-latest
+    environment:
+      name: prod  # aprovação manual e variables ficam no environment; o papel IAM só aceita este environment
+      url: ${{ steps.outputs.outputs.endpoint }}
+    permissions:
+      contents: write  # criar a GitHub Release
+      id-token: write  # OIDC com a AWS
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: ./.github/actions/setup
+
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: chalice-api-${{ github.ref_name }}
+
+      - run: make release
+
+      - name: URL da API
+        id: outputs
+        run: |
+          endpoint=$(aws cloudformation describe-stacks --stack-name chalice-api-prod \
+            --query "Stacks[0].Outputs[?OutputKey=='EndpointURL'].OutputValue" --output text)
+          echo "endpoint=$endpoint" >> "$GITHUB_OUTPUT"
+          echo "### $GITHUB_REF_NAME publicado em produção: $endpoint" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes --title "$GITHUB_REF_NAME"
